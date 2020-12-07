@@ -6,12 +6,7 @@ import sys
 import os
 from io import StringIO
 import errno
-
-
-# set(
-# 	name = 'current_client_interace.py',
-# 	version = '0.0.1',
-# 	entry_points={})
+import datetime
 
 class User:
 	def __init__(self,username,password):
@@ -30,24 +25,16 @@ class User:
 	def setPass(password):
 		self.password = password
 
-
-
 class LoginInterface(tkinter.Tk):
-
-	# def __init__(self,HOST='96.126.117.230',PORT=80,BUFSIZ=1024):
-	# 	self.HOST = HOST
-	# 	self.PORT = PORT
-	# 	self.BUFSIZ = BUFSIZ
 
 	def __init__(self):
 		tkinter.Tk.__init__(self)
-		self.title("Login")
+		self.title("Mimosa Messaging")
 		self.geometry("550x450")
 		self.configure(bg='bisque2')
 		
-
 		spacelb = tkinter.Label(self,text="",bg='bisque2').pack()
-		labe1= tkinter.Label(self, text="Welome my dude/dudette",bg='bisque2').pack()
+		self.labe1= tkinter.Label(self, text="Welome my dude/dudette",bg='bisque2').pack()
 		label2= tkinter.Label(self, text="",bg='bisque2').pack()
 
 		userlabel = tkinter.Label(self, text="Username",bg='bisque2').pack()
@@ -67,12 +54,7 @@ class LoginInterface(tkinter.Tk):
 		self.cred_list = []
 
 		loginbutton = tkinter.Button(self, text="Login", width=10, height=1,command=self.setCredents,bg='bisque2').pack()
-		
-		
 
-	# def main(self):
-	# 	self.BuildLoginInterface()
-	# 	print(self.User.getName())
 	
 	def setCredents(self):
 
@@ -83,21 +65,29 @@ class LoginInterface(tkinter.Tk):
 	def getCredents(self):
 		return self.cred_list
 
-
-
 class MasterInterface():
 
 	def __init__(self,User,client_socket,BUFSIZ):
+
+		self.commands_dict = {"quit()" : " | closes program [you can also just click x at top right], quit() may take two attempts", 
+							"users()" : "| lists users currently online",
+							"bug()" : "  | use this to report a bug -- usage: bug() [space] whatever you want to report",
+							"priv()" : " | use this to private message -- usage: priv() [space] [user_to_priv_msg] [space] [your message]"
+							}
 		self.BUFSIZ = BUFSIZ
 		self.client_socket = client_socket
 		self.window = tkinter.Tk()
 		self.window.title("Mimosa Messaging")
 		self.window.geometry("1000x600")
 		self.window.protocol("WM_DELETE_WINDOW", self.close_window)
+		
+		self.updateframe = tkinter.LabelFrame(self.window,text="Updates will be listed here maybe",height=300,width=115,font=('Consolas', 10))
+		self.updateframe.place(x=12,y=5)
+		
+		self.s1label = tkinter.Label(self.updateframe,text="---------------------------------------------")
+		self.s1label.pack(fill=tkinter.X)
 
-		self.userstatusframe = tkinter.LabelFrame(self.window,text="User's Online",height=300,width=100)
-		self.userstatusframe.place(x=10,y=0)
-
+		self.updateButton = tkinter.Button(self.updateframe,text="Update",width=10,height=1).pack()
 
 
 
@@ -108,7 +98,7 @@ class MasterInterface():
 		self.scrollbar = tkinter.Scrollbar(self.messages_frame,orient=tkinter.VERTICAL)
 		self.scrollbar.pack(side=tkinter.RIGHT,fill=tkinter.Y)
 
-		self.msg_list = tkinter.Listbox(self.messages_frame, height=11, width=118,yscrollcommand=self.scrollbar.set,fg='dark goldenrod',bg='lavender')
+		self.msg_list = tkinter.Listbox(self.messages_frame, height=11, width=118,yscrollcommand=self.scrollbar.set,fg='dark goldenrod',bg='lavender',font=('Consolas', 10))
 
 		self.msg_list.configure(yscrollcommand=self.scrollbar.set)
 		self.scrollbar.configure(command=self.msg_list.yview)
@@ -116,7 +106,7 @@ class MasterInterface():
 		self.msg_list.pack(side=tkinter.TOP,fill=tkinter.BOTH)
 		
 		self.my_msg = tkinter.StringVar()
-		self.sendmsg_field = tkinter.Entry(self.messages_frame, textvariable=self.my_msg,width=50,fg='black',bg='lavender')
+		self.sendmsg_field = tkinter.Entry(self.messages_frame, textvariable=self.my_msg,width=50,fg='black',bg='lavender',font=('Consolas', 10))
 		self.sendmsg_field.bind("<Return>", self.send)
 		self.sendmsg_field.pack(side=tkinter.BOTTOM,fill=tkinter.X)
 
@@ -125,135 +115,151 @@ class MasterInterface():
 		
 		self.client_socket.send(bytes(self.User.getName(),"utf8"))
 
-		receive_thread = Thread(target=self.recieve)
-		receive_thread.start()
+		self.client_socket.send(bytes(self.User.getName(),"utf8"))
 
-		
+		receive_thread = Thread(target=self.receive)
+		receive_thread.start()
 
 
 	def close_window(self):
-		self.my_msg.set("-q")
+		self.my_msg.set("quit()")
 		self.send()
 
-		
-
-	def recieve(self):
+	
+	def receive(self):
 		while True:
 			try:
+    
+				curr_time_UTC = datetime.datetime.now()
+				day_name = curr_time_UTC.strftime('%a')
+				am_or_pm = curr_time_UTC.strftime('%p')
+
+				hour_min = curr_time_UTC.strftime("%I:%M")
+
+				hour_minute_day_UTC = "| %s %s  %s |" % (hour_min,am_or_pm,day_name)
+
 				msg = self.client_socket.recv(self.BUFSIZ).decode("utf8")
-				self.msg_list.insert(tkinter.END, msg)
+
+				pm_tag = msg[0:2]
+
+
+				if "for a list of commands" in msg:
+					dashes = ""
+					for i in range(0,len(msg)):
+						dashes = dashes + "-"
+					self.msg_list.insert(tkinter.END," ")
+					self.msg_list.insert(tkinter.END, msg)
+					self.msg_list.itemconfig(tkinter.END,{'fg':'black'})
+					self.msg_list.insert(tkinter.END,dashes)
+					self.msg_list.itemconfig(tkinter.END,{'fg':'black'})
+				elif "has left the chat." in msg:
+					self.msg_list.insert(tkinter.END,msg)
+					self.msg_list.itemconfig(tkinter.END, {'fg':'purple'})
+					self.msg_list.see(tkinter.END)
+				elif "has joined the chat!" in msg:
+					self.msg_list.insert(tkinter.END,msg)
+					self.msg_list.itemconfig(tkinter.END, {'fg':'purple'})
+					self.msg_list.see(tkinter.END)
+				elif msg == "-l":
+					self.msg_list.insert(tkinter.END,"Commands:")
+					self.msg_list.itemconfig(tkinter.END, {'fg':'blue'})
+					for key,value in self.commands_dict.items():
+						self.msg_list.insert(tkinter.END,"     --> " + key + value)
+						self.msg_list.itemconfig(tkinter.END, {'fg':'blue'})
+						self.msg_list.see(tkinter.END)
+				elif "[" in msg and "]" in msg:
+					dashes = "------------"
+					for i in range(0,len(msg)):
+						dashes = dashes + "-"
+					self.msg_list.insert(tkinter.END,dashes)
+					self.msg_list.see(tkinter.END)
+					self.msg_list.itemconfig(tkinter.END,{'fg':'black'})
+					self.msg_list.insert(tkinter.END, "Users online: " + msg)
+					self.msg_list.see(tkinter.END)
+					self.msg_list.itemconfig(tkinter.END,{'fg':'black'})
+					self.msg_list.insert(tkinter.END,dashes)
+					self.msg_list.see(tkinter.END)
+					self.msg_list.itemconfig(tkinter.END,{'fg':'black'})
+				elif msg == "Bug reported thanks nerdXyxm":
+					self.msg_list.insert(tkinter.END, "Bug reported thanks nerd")
+					self.msg_list.itemconfig(tkinter.END,{'fg':'green'})
+					self.msg_list.see(tkinter.END)
+				# elif pm_tag == "PM":
+				# 	self.msglist.insert(tkinter.END,msg[pm_tag+1:])
+				# 	self.msg_list.itemconfig(tkinter.END, {'fg':'red'})
+				# 	self.msg_list.see(tkinter.END)
+				elif "PrivMsg" in msg:
+					self.msg_list.insert(tkinter.END,msg)
+					self.msg_list.itemconfig(tkinter.END, {'fg':'red'})
+					self.msg_list.see(tkinter.END)
+
+				else:
+					msg_pad_hmd = f'{msg: <{94}}  {hour_minute_day_UTC}'
+					self.msg_list.insert(tkinter.END, msg_pad_hmd)
+					self.msg_list.see(tkinter.END)
+					
 			except OSError: # Possibly client has left the chat.
 				break
 
 	
 	def send(self,event=None):  # event is passed by binders.
-
+	
+		msg = self.my_msg.get()
 		try:
-			msg = self.my_msg.get()
-			self.my_msg.set("") # Clears input field.
+			index = msg.index(">")
+			msg = msg[index+2:]
+		except ValueError:
+			pass	
+		self.my_msg.set("--> ")  # Clears input field.
+		try:
 			self.client_socket.send(bytes(msg, "utf8"))
-			if msg == "-q":
-				self.client_socket.close()
-				self.window.destroy()
 		except OSError:
-			pass
-		
+			sys.exit()
+		if msg == "quit()":
+			self.client_socket.close()
+			self.window.quit()
+			
 
-	# def close_window(self):
-	# 	global running
-	# 	running = False
-	# 	print("ok")
-	# 	process = subprocess.Popen(['send.exe'],stdout=subprocess.PIPE,shell=True)
-
-
-
-	# def on_closing(self,event=None):
-	# 	self.client_socket.close()
-	# 	self.window.destroy()
-
-	
-
-	
-
-		#self.protocol("WM_DELETE_WINDOW", on_closing)
-		
-
-
-	# def BuildLoginInterface(self):
-
-	# 	login_screen = tkinter.Tk()
-	# 	login_screen.title("Login")
-	# 	login_screen.geometry("300x250")
-
-	# 	labe1= tkinter.Label(login_screen, text="Welome").pack()
-	# 	label2= tkinter.Label(login_screen, text="").pack()
-
-	# 	userlabel = tkinter.Label(login_screen, text="Username * ").pack()
-
-	# 	username_login_entry = tkinter.Entry(login_screen)
-	# 	username_login_entry.pack()
-
-	# 	spacelabel = tkinter.Label(login_screen, text="").pack()
-
-	# 	passlabel = tkinter.Label(login_screen, text="Password * ").pack()
-
-	# 	password_login_entry = tkinter.Entry(login_screen,show= '*')
-	# 	password_login_entry.pack()
-
-	# 	spacelabel2 = tkinter.Label(login_screen, text="").pack()
-
-	# 	print(username_login_entry.get())
-	# 	self.User = User(username_login_entry.get(),password_login_entry.get())
-	# 	print(self.User)
-		
-
-	# 	loginbutton = tkinter.Button(login_screen, text="Login", width=10, height=1,command=self.printt).pack()
-	# 	login_screen.mainloop()
-		
-	# #def BuildMainInterface(self):
-
-	# 	self.master = tkinter.Tk()
-	# 	self.master.title("Mimosa Messaging")
-	# 	self.master.geometry("1000x600")
-
-	# 	userstatusframe = tkinter.LabelFrame(self.master,text="User's Online",height=300,width=100)
-	# 	userstatusframe.place(x=10,y=0)
-
-	# 	messages_frame = tkinter.LabelFrame(self.master,text="Chat",height=270,width=990)
-	# 	messages_frame.grid(row=2, column=4, columnspan=1, sticky="E",padx=5, pady=5, ipadx=0, ipady=0)
-	# 	messages_frame.pack(side='bottom',padx=0,pady=10)
-
-	# 	scrollbar = tkinter.Scrollbar(messages_frame,orient=tkinter.VERTICAL)
-	# 	scrollbar.pack(side=tkinter.RIGHT,fill=tkinter.Y)
-
-	# 	self.msg_list = tkinter.Listbox(messages_frame, height=11, width=118,yscrollcommand=scrollbar.set)
-
-	# 	self.msg_list.configure(yscrollcommand=scrollbar.set)
-	# 	scrollbar.configure(command=self.msg_list.yview)
-
-	# 	self.msg_list.pack(side=tkinter.TOP,fill=tkinter.BOTH)
-		
-	# 	self.my_msg = tkinter.StringVar()
-	# 	sendmsg_field = tkinter.Entry(messages_frame, textvariable=my_msg,width=50)
-	# 	sendmsg_field.bind("<Return>", send)
-	# 	sendmsg_field.pack(side=tkinter.BOTTOM,fill=tkinter.X)
-
-	# 	self.master.protocol("WM_DELETE_WINDOW", on_closing)
-	# 	tkinter.mainloop()
-
-	
-
-	
-
-
-ADDR = ('96.126.117.230',80)
+ADDR = ('96.126.117.230',33000)
 socket = socket(AF_INET, SOCK_STREAM)
+
+
+global error_string
+error_string = ""
+
+global check_to_kill
+check_to_kill = False
 
 try:
 	socket.connect(ADDR)
-except ConnectionRefusedError:
-	print("ERROR 111")
+except OSError as e:
+		x,y = e.args
+		error_string = y
 		
+print(error_string)
+if error_string != "":
+	check_to_kill = True
+	error_screen = tkinter.Tk()	
+	error_screen.title("Mimosa Messaging")
+	error_screen.geometry("550x450")
+	error_screen.configure(bg='bisque2')
+
+	spacelb1 = tkinter.Label(error_screen,text="",bg='bisque2').pack()
+	spacelb2 = tkinter.Label(error_screen,text="",bg='bisque2').pack()
+	spacelb3 = tkinter.Label(error_screen,text="",bg='bisque2').pack()
+
+	if error_string == "Connection refused":
+		labe1= tkinter.Label(error_screen, text="Our server is down, we will be back online ASAP",bg='bisque2').pack()
+	elif error_string == "Network unreachable":
+		labe1= tkinter.Label(error_screen, text="Seems like you're not connected to the internet, check that out",bg='bisque2').pack()
+	else:
+		labe1= tkinter.Label(error_screen, text="Unknown error woops",bg='bisque2').pack()
+	
+	error_exit_button = tkinter.Button(error_screen, text="exit", width=10, height=1,command=error_screen.destroy,bg='bisque2').pack(side=tkinter.BOTTOM)
+	error_screen.mainloop()
+
+if check_to_kill == True:
+	sys.exit()
 login = LoginInterface()
 login.mainloop()
 print(login.cred_list)
